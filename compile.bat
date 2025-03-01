@@ -1,7 +1,7 @@
-call "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat"
-
-cl /EHsc /std:c++17 /openmp /O2 dbpf-recompress.cpp
-
-del dbpf-recompress.obj
-
+:: Using the nuwen build of MinGW
+call C:\mingw\set_distro_paths.bat
+echo on
+g++ -c -std=c++17 -O2 dbpf-recompress.cpp
+g++ dbpf-recompress.o -fopenmp -lboost_nowide -o dbpf-recompress.exe
+del dbpf-recompress.o
 pause

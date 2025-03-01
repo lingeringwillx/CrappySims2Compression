@@ -22,9 +22,13 @@ namespace qfs {
 	//it will fail if the compressed output >= decompressed input since it's better to store these assets uncompressed
 	//this typically happens with very small assets
 	bytes compress(bytes& src) {
+		//maximum accepted size of src is 0xFFFFFF due to the fact that the uncompressed size in the header is only 3 bytes long
+		if(src.size() > 0xFFFFFF) {
+			return bytes();
+		}
+
 		//compressed output has to smaller than the decompressed output, otherwise it's not useful
-		//maximum possible size of the compressed entry is 0xFFFFFF + 1 due to the fact that the compressed size in the header is only 3 bytes long
-		bytes dst = bytes(getMin(src.size() - 1, 16777216));
+		bytes dst = bytes(src.size() - 1);
 		Table table = Table(src);
 		
 		uint srcPos = 0;

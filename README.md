@@ -2,7 +2,7 @@
 
 <img src="https://github.com/lingeringwillx/CrappySims2Compression/assets/111698406/5e1e045d-ab02-48c0-9a69-f8fb5ab57cbc" width="400">
 
-<br/>Current build can be compiled with Visual C++ Build Tools. Run `compile.bat` to compile.
+<br/>Current build can be compiled with the nuwen version of MinGW. Run `compile.bat` to compile.
 
 Usage: `dbpf-recompress -args package_file_or_folder`
 
