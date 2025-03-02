@@ -144,7 +144,7 @@ namespace dbpf {
 	bytes compressEntry(Entry& entry, bytes& content) {
 		if(!entry.compressed && !entry.repeated) {
 			bytes newContent = bytes(content.size() - 1); //must be smaller than the original, otherwise there is no benefit
-			int length = qfs_compress(content.data(), content.size(), newContent.data());
+			int length = qfs_compress(content.data(), content.size(), newContent.data(), newContent.size());
 
 			if(length > 0) {
 				newContent.resize(length);
@@ -159,7 +159,7 @@ namespace dbpf {
 	bytes decompressEntry(Entry& entry, bytes& content) {
 		if(entry.compressed) {
 			bytes newContent = bytes(getUncompressedSize(content));
-			bool success = qfs_decompress(content.data(), content.size(), newContent.data(), newContent.size(), false);
+			bool success = qfs_decompress(content.data(), content.size(), newContent.data(), newContent.size());
 
 			if(success) {
 				entry.compressed = false;

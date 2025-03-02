@@ -1,41 +1,35 @@
 /*
+ * Version 20070601.
+ *
  * This file (with the exception of some parts adapted from zlib) is
  * Copyright 2007 Ben Rudiak-Gould. Anyone may use it under the terms of
  * the GNU General Public License, version 2 or (at your option) any
  * later version. This code comes with NO WARRANTY. Make backups!
  */
 
-#ifndef COMPRESSION_H
-#define COMPRESSION_H
-
 #include <string.h>  // for memcpy and memset
 #include <stdlib.h>
 
 //#include <assert.h>
 #define assert(expr) do{}while(0)
-	
-static bool qfs_decompress(const unsigned char* src, int compressed_size, unsigned char* dst, int uncompressed_size, bool truncate);
-static int qfs_compress(const unsigned char* src, int srclen, unsigned char* dst);
-static unsigned char* _compress(const unsigned char* src, const unsigned char* srcend, unsigned char* dst, unsigned char* dstend, bool pad);
+
+typedef unsigned char byte;
+
+extern "C" {
+    bool qfs_decompress(const byte* src, int srclen, byte* dst, int dstlen);
+    int qfs_compress(const byte* src, int srclen, byte* dst, int dstlen);
+}
 
 // datatype assumptions: 8-bit bytes; sizeof(int) >= 4
-
-struct word { unsigned char lo,hi; };
+struct word { byte lo,hi; };
 struct dword { word lo,hi; };
 
-#ifdef _X86_   // little-endian and no alignment restrictions
-  static inline unsigned get(const word& w)     { return *(const unsigned short*)&w; }
-  static inline unsigned get(const dword& dw)   { return *(const unsigned*)&dw; }
-  static inline void put(word& w, unsigned x)   { *(unsigned short*)&w = x; }
-  static inline void put(dword& dw, unsigned x) { *(unsigned*)&dw = x; }
-#else
-  static inline unsigned get(const word& w)     { return w.lo + w.hi * 256; }
-  static inline unsigned get(const dword& dw)   { return get(dw.lo) + get(dw.hi) * 65536; }
-  static inline void put(word& w, unsigned x)   { w.lo = x; w.hi = x >> 8; }
-  static inline void put(dword& dw, unsigned x) { put(dw.lo, x); put(dw.hi, x >> 16); }
-#endif
+static inline unsigned get(const word& w)     { return w.lo + w.hi * 256; }
+static inline unsigned get(const dword& dw)   { return get(dw.lo) + get(dw.hi) * 65536; }
+static inline void put(word& w, unsigned x)   { w.lo = x; w.hi = x >> 8; }
+static inline void put(dword& dw, unsigned x) { put(dw.lo, x); put(dw.hi, x >> 16); }
 
-struct word3be { unsigned char hi,mid,lo; };
+struct word3be { byte hi,mid,lo; };
 
 static inline unsigned get(const word3be& w3)   { return w3.hi * 65536 + w3.mid * 256 + w3.lo; }
 static inline void put(word3be& w3, unsigned x) { w3.hi = x >> 16; w3.mid = x >> 8; w3.lo = x; }
@@ -64,26 +58,22 @@ struct dbpf_compressed_file_header  // 9 bytes
 
 #define DBPF_COMPRESSION_QFS (0xFB10)
 
-static bool qfs_decompress(const unsigned char* src, int compressed_size, unsigned char* dst, int uncompressed_size, bool truncate) {
-    const unsigned char* src_end = src + compressed_size;
-    unsigned char* dst_end = dst + uncompressed_size;
-    unsigned char* dst_start = dst;
+bool qfs_decompress(const byte* src, int srclen, byte* dst, int dstlen)
+{
+    const byte* src_end = src + srclen;
+    byte* dst_end = dst + dstlen;
+    byte* dst_start = dst;
 
-    if (compressed_size < (int)sizeof(dbpf_compressed_file_header) + 1)
+    if (srclen < (int)sizeof(dbpf_compressed_file_header) + 1)
         return false;
     const dbpf_compressed_file_header* hdr = (const dbpf_compressed_file_header*)src;
 
     if (get(hdr->compression_id) != DBPF_COMPRESSION_QFS)
         return false;
 
-    int hdr_c_size = get(hdr->compressed_size), hdr_uc_size = get(hdr->uncompressed_size);
-    if (truncate) {
-        if (hdr_c_size < compressed_size || hdr_uc_size < uncompressed_size)
-            return false;
-    } else {
-        if (hdr_c_size != compressed_size || hdr_uc_size != uncompressed_size)
-            return false;
-    }
+    int hdr_c_size = get(hdr->uncompressed_size), hdr_uc_size = get(hdr->compressed_size);
+    if (hdr_c_size != srclen || hdr_uc_size != dstlen)
+        return false;
 
     src += sizeof(dbpf_compressed_file_header);
 
@@ -122,8 +112,6 @@ static bool qfs_decompress(const unsigned char* src, int compressed_size, unsign
             offset = 0;
         }
         if (src + lit > src_end || dst + lit + copy > dst_end) {
-            if (!truncate)
-                return false;
             if (lit > dst_end - dst)
                 lit = dst_end - dst;
             if (copy > dst_end - dst - lit)
@@ -150,35 +138,9 @@ static bool qfs_decompress(const unsigned char* src, int compressed_size, unsign
         }
     } while (src < src_end && dst < dst_end);
 
-    if (truncate) {
-        return (dst == dst_end);
-    } else {
-        while (src < src_end && *src == 0xFC)
-            ++src;
-        return (src == src_end && dst == dst_end);
-    }
-}
-
-/*
- * Try to compress the data and return the result in a buffer (which the
- * caller must delete). If it's uncompressable, return NULL.
- */
- 
-static int qfs_compress(const unsigned char* src, int srclen, unsigned char* dst) {
-    // There are only 3 byte for the uncompressed size in the header,
-    // so I guess we can only compress files larger than 16MB...
-    if (srclen < 14 || srclen >= 16777216) return 0;
-
-    // We only want the compressed output if it's smaller than the
-    // uncompressed.
-
-    unsigned char* dstend = _compress(src, src+srclen, dst, dst+srclen-1, false);
-	
-    if (dstend) {
-        return dstend - dst;
-    } else {
-        return 0;
-    }
+    while (src < src_end && *src == 0xFC)
+        ++src;
+    return (src == src_end && dst == dst_end);
 }
 
 #define MAX_MATCH 1028
@@ -201,7 +163,8 @@ static int qfs_compress(const unsigned char* src, int srclen, unsigned char* dst
 #define MAX_DIST W_SIZE
 #define W_MASK (W_SIZE-1)
 
-class Hash {
+class Hash
+{
 private:
     unsigned hash;
     int *head, *prev;
@@ -231,22 +194,23 @@ public:
     }
 };
 
-class CompressedOutput {
+class CompressedOutput
+{
 private:
 
-    unsigned char* dstpos;
-    unsigned char* dstend;
-    const unsigned char* src;
+    byte* dstpos;
+    byte* dstend;
+    const byte* src;
     unsigned srcpos;
 
 public:
 
-    CompressedOutput(const unsigned char* src_, unsigned char* dst, unsigned char* dstend_) {
+    CompressedOutput(const byte* src_, byte* dst, byte* dstend_) {
         dstpos = dst; dstend = dstend_; src = src_;
         srcpos = 0;
     }
 
-    unsigned char* get_end() { return dstpos; }
+    byte* get_end() { return dstpos; }
 
     bool emit(unsigned from_pos, unsigned to_pos, unsigned count)
     {
@@ -330,11 +294,12 @@ public:
   (zlib format), rfc1951.txt (deflate format) and rfc1952.txt (gzip format).
 */
 
-static inline unsigned longest_match(
+static inline
+unsigned longest_match(
     int cur_match,
     const Hash& hash,
-    const unsigned char* const src,
-    const unsigned char* const srcend,
+    const byte* const src,
+    const byte* const srcend,
     unsigned const pos,
     unsigned const remaining,
     unsigned const prev_length,
@@ -346,15 +311,15 @@ static inline unsigned longest_match(
     int limit = pos > MAX_DIST ? pos - MAX_DIST + 1 : 0;
     /* Stop when cur_match becomes < limit. */
 
-    const unsigned char* const scan = src+pos;
+    const byte* const scan = src+pos;
 
     /* This is important to avoid reading past the end of the memory block */
     if (best_len >= (int)remaining)
         return remaining;
 
     const int max_match = (remaining < MAX_MATCH) ? remaining : MAX_MATCH;
-    unsigned char scan_end1  = scan[best_len-1];
-    unsigned char scan_end   = scan[best_len];
+    byte scan_end1  = scan[best_len-1];
+    byte scan_end   = scan[best_len];
 
     /* Do not waste too much time if we already have a good match: */
     if (prev_length >= GOOD_LENGTH) {
@@ -367,7 +332,7 @@ static inline unsigned longest_match(
 
     do {
         assert(cur_match < pos);
-        const unsigned char* match = src + cur_match;
+        const byte* match = src + cur_match;
 
         /* Skip to next match if the match length cannot increase
          * or if the match length is less than 2.
@@ -399,10 +364,20 @@ static inline unsigned longest_match(
     return best_len;
 }
 
-/* Returns the end of the compressed data if successful, or NULL if we overran the output buffer */
+/*
+ * Try to compress the data and return the result in a buffer (which the
+ * caller must delete). If it's uncompressable, return NULL.
+ */
 
-static unsigned char* _compress(const unsigned char* src, const unsigned char* srcend, unsigned char* dst, unsigned char* dstend, bool pad) {
-	
+int qfs_compress(const byte* src, int srclen, byte* dst, int dstlen)
+{
+    // There are only 3 byte for the uncompressed size in the header,
+    // so I guess we can only compress files smaller than 16MB...
+    if (srclen > 0xFFFFFF) return 0;
+
+    const byte* srcend = src + srclen;
+    byte* dstend = dst + dstlen;
+
     unsigned match_start = 0;
     unsigned match_length = MIN_MATCH-1;           /* length of best match */
     bool match_available = false;         /* set if previous match exists */
@@ -474,18 +449,12 @@ static unsigned char* _compress(const unsigned char* src, const unsigned char* s
     if (!compressed_output.emit(pos, pos, 0))
         return 0;
 
-    unsigned char* dstsize = compressed_output.get_end();
-    if (pad && dstsize < dstend) {
-        memset(dstsize, 0xFC, dstend-dstsize);
-        dstsize = dstend;
-    }
+    byte* dstsize = compressed_output.get_end();
 
     dbpf_compressed_file_header* hdr = (dbpf_compressed_file_header*)dst;
-    put(hdr->compressed_size, dstsize - dst);
+    put(hdr->uncompressed_size, dstsize - dst);
     put(hdr->compression_id, DBPF_COMPRESSION_QFS);
-    put(hdr->uncompressed_size, srcend-src);
+    put(hdr->compressed_size, srcend-src);
 
-    return dstsize;
+    return dstsize - dst;
 }
-
-#endif
