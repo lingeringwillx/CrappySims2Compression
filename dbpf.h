@@ -44,7 +44,7 @@ namespace dbpf {
 
 	//convert 4 bytes from buf at pos to an integer and increment pos (little endian)
 	uint getInt(bytes& buf, uint& pos) {
-		return ((uint) buf[pos++]) + ((uint) buf[pos++] << 8) + ((uint) buf[pos++] << 16) + ((uint) buf[pos++] << 24);
+		return ((uint) buf[pos++]) | ((uint) buf[pos++] << 8) | ((uint) buf[pos++] << 16) | ((uint) buf[pos++] << 24);
 	}
 
 	//put integer in buf at pos and increment pos (little endian)
@@ -57,7 +57,7 @@ namespace dbpf {
 
 	//get the uncompressed size from the compression header (3 bytes big endian integer)
 	uint getUncompressedSize(bytes& buf) {
-		return ((uint) buf[6] << 16) + ((uint) buf[7] << 8) + ((uint) buf[8]);
+		return ((uint) buf[6] << 16) | ((uint) buf[7] << 8) | ((uint) buf[8]);
 	}
 
 	/* compression mode

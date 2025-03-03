@@ -35,8 +35,8 @@ int main(int argc, char *argv[]) {
 	//parse args
 	string arg = argv[1];
 
-	if(arg == "help") {
-		cout << "dbpf-recompress.exe -args package_file_or_folder" << endl;
+	if(arg == "-h" || arg == "-help") {
+		cout << "dbpf-recompress -args package_file_or_folder" << endl;
 		cout << "  -d  decompress" << endl;
 		cout << endl;
 		return 0;
