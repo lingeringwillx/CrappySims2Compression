@@ -23,7 +23,6 @@ void tryDelete(string fileName) {
 	catch(filesystem::filesystem_error) {}
 }
 
-//using wide chars and wide strings to support UTF-16 file names
 int main(int argc, char *argv[]) {
     boost::nowide::args a(argc, argv); //fix arguments - make them UTF-8
 
